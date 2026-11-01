@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<title>稿台 · 一句话出一篇能直接发的公众号稿子</title>
+<meta name="description" content="输入一个想法或一段素材，AI 自动完成选题、标题、大纲、正文与公众号排版，一键复制就能粘进微信编辑器。" />
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%230f6b57'/%3E%3Ctext x='50' y='70' font-size='58' text-anchor='middle' fill='%23f7f4ee' font-family='serif'%3E稿%3C/text%3E%3C/svg%3E" />
+<link rel="stylesheet" href="assets/app.css" />
+</head>
+<body>
+
+<!-- ───────────────────────── 顶栏 ───────────────────────── -->
+<header class="topbar">
+  <div class="brand">
+    <div class="brand-mark">稿</div>
+    <div class="brand-text">
+      <h1>稿台</h1>
+      <p>一句话 → 一篇能直接发公众号的稿子</p>
+    </div>
+  </div>
+
+  <div class="topbar-actions">
+    <label class="model-pick" title="切换写作模型">
+      <span class="model-dot" id="modelDot"></span>
+      <select id="modelSelect" aria-label="选择模型"></select>
+    </label>
+    <button class="btn ghost sm" id="btnExamples" type="button">看示例</button>
+    <button class="btn ghost sm" id="btnDrafts" type="button">草稿箱<span class="badge" id="draftCount">0</span></button>
+    <button class="btn ghost sm" id="btnHelp" type="button">怎么用</button>
+  </div>
+</header>
+
+<main class="app-grid">
+
+  <!-- ───────────────────────── 左：输入 ───────────────────────── -->
+  <section class="panel input-panel" id="inputPanel">
+    <div class="panel-head">
+      <h2>想写点什么</h2>
+      <p class="hint">一个念头、一段素材、一个链接的主题都行</p>
+    </div>
+
+    <div class="field">
+      <textarea id="topic" rows="6" placeholder="例如：把我们组做 C6 Web App 这两个小时的踩坑，写成一篇学弟学妹看得懂的复盘"></textarea>
+      <div class="field-foot">
+        <span id="topicCount">0 字</span>
+        <button class="linkbtn" id="btnSample" type="button">填个示例</button>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="field-label">写作风格</label>
+      <div class="chips" id="modeChips">
+        <button class="chip active" data-mode="干货科普" type="button">干货科普</button>
+        <button class="chip" data-mode="亲身故事" type="button">亲身故事</button>
+        <button class="chip" data-mode="清单体" type="button">清单体</button>
+        <button class="chip" data-mode="深度观察" type="button">深度观察</button>
+        <button class="chip" data-mode="产品介绍" type="button">产品介绍</button>
+      </div>
+    </div>
+
+    <div class="field two-col">
+      <div>
+        <label class="field-label" for="audience">写给谁看</label>
+        <select id="audience">
+          <option>同专业的同学 / 学弟学妹</option>
+          <option>AI 工具的重度用户</option>
+          <option>不懂技术的普通读者</option>
+          <option>行业内的同行</option>
+          <option>潜在的合作伙伴 / 客户</option>
+        </select>
+      </div>
+      <div>
+        <label class="field-label" for="length">篇幅</label>
+        <select id="length">
+          <option value="800">短 · 约 800 字</option>
+          <option value="1500" selected>中 · 约 1500 字</option>
+          <option value="2500">长 · 约 2500 字</option>
+        </select>
+      </div>
+    </div>
+
+    <div class="field">
+      <label class="field-label" for="extra">必须提到的点 <span class="opt">选填</span></label>
+      <input id="extra" type="text" placeholder="例如：要提到「复制到公众号」这个功能；不要用「赋能／闭环」这种词" />
+    </div>
+
+    <button class="btn primary block lg" id="btnStart" type="button">
+      <span>开始创作</span>
+      <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12h13M13 6l6 6-6 6" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>
+    </button>
+    <button class="btn ghost block" id="btnTitlesOnly" type="button">先只给我标题和思路</button>
+
+    <div class="mini-notes">
+      <p>· 不用注册，打开就能写</p>
+      <p>· 自动带公众号排版，复制即用</p>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── 中：工作台 ───────────────────────── -->
+  <section class="workbench" id="workbench">
+
+    <div class="steps" id="steps">
+      <div class="step" data-step="1"><i>1</i><span>选题与标题</span></div>
+      <div class="step" data-step="2"><i>2</i><span>文章大纲</span></div>
+      <div class="step" data-step="3"><i>3</i><span>正文成稿</span></div>
+      <div class="step" data-step="4"><i>4</i><span>排版与发布</span></div>
+    </div>
+
+    <!-- 空状态 -->
+    <div class="empty-state" id="emptyState">
+      <div class="empty-art" aria-hidden="true">
+        <div class="paper-stack">
+          <div class="paper p3"></div>
+          <div class="paper p2"></div>
+          <div class="paper p1">
+            <span class="line w80"></span><span class="line w95"></span><span class="line w60"></span>
+            <span class="line w90"></span><span class="line w45"></span>
+          </div>
+        </div>
+      </div>
+      <h3>三步，从一句话到一篇成稿</h3>
+      <p class="empty-desc">写两句你的想法 → AI 给出标题和结构 → 一键生成全文并排好公众号版式</p>
+      <div class="example-grid" id="exampleGrid">
+        <button class="example-card" data-topic="讲讲我是怎么用 AI 把一份 300 页的课程 PDF 变成可检索笔记的，过程里的弯路也写上" data-mode="亲身故事">
+          <b>把 300 页 PDF 变成笔记</b><span>亲身故事 · 有过程有弯路</span>
+        </button>
+        <button class="example-card" data-topic="给完全不懂代码的同学讲清楚：大模型到底是怎么「猜」下一个字的" data-mode="干货科普">
+          <b>大模型是怎么「猜」字的</b><span>干货科普 · 零基础友好</span>
+        </button>
+        <button class="example-card" data-topic="我们宿舍四个人用同一套 AI 工具，为什么效率差三倍？总结成 5 条能直接照做的习惯" data-mode="清单体">
+          <b>同一个工具，效率差三倍</b><span>清单体 · 可照做</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- 选题卡片 -->
+    <div class="stage" id="stageIdeas" hidden>
+      <div class="stage-head">
+        <h3>选题与标题</h3>
+        <button class="linkbtn" id="btnRedoIdeas" type="button">换一批</button>
+      </div>
+      <div class="angle-card">
+        <span class="tag">切入角度</span>
+        <p id="angleText"></p>
+      </div>
+      <div class="title-list" id="titleList"></div>
+      <div class="meta-row">
+        <div class="meta-box">
+          <span class="meta-label">摘要</span>
+          <p id="summaryText"></p>
+          <button class="linkbtn xs" data-copy="summary" type="button">复制</button>
+        </div>
+        <div class="meta-box">
+          <span class="meta-label">封面文案</span>
+          <p id="coverText"></p>
+          <button class="linkbtn xs" data-copy="cover" type="button">复制</button>
+        </div>
+      </div>
+      <button class="btn primary block" id="btnMakeOutline" type="button">这篇就用第一个标题，生成大纲</button>
+    </div>
+
+    <!-- 大纲 -->
+    <div class="stage" id="stageOutline" hidden>
+      <div class="stage-head">
+        <h3>文章大纲</h3>
+        <div class="stage-tools">
+          <span class="hint">可以直接改，改完再让它写</span>
+          <button class="linkbtn" id="btnRedoOutline" type="button">重排</button>
+        </div>
+      </div>
+      <textarea class="outline-editor" id="outlineBox" spellcheck="false"></textarea>
+      <button class="btn primary block" id="btnWriteArticle" type="button">
+        <span>按这个大纲写全文</span>
+      </button>
+    </div>
+
+    <!-- 正文 -->
+    <div class="stage article-stage" id="stageArticle" hidden>
+      <div class="stage-head">
+        <h3><span id="articleTitle">正文成稿</span><span class="pill sample-pill" id="samplePill" hidden>示例稿</span></h3>
+        <div class="seg" id="viewSeg">
+          <button class="seg-btn active" data-view="preview" type="button">排版预览</button>
+          <button class="seg-btn" data-view="edit" type="button">改文字</button>
+        </div>
+      </div>
+
+      <div class="theme-bar">
+        <div class="chips tight" id="themeChips">
+          <button class="chip xs active" data-theme="ink" type="button">墨黑</button>
+          <button class="chip xs" data-theme="forest" type="button">墨绿</button>
+          <button class="chip xs" data-theme="amber" type="button">暖阳</button>
+          <button class="chip xs" data-theme="mono" type="button">极简</button>
+        </div>
+        <label class="switch" title="在中文与英文/数字之间自动加细间距">
+          <input type="checkbox" id="cjkSpace" checked /><span>中英间距</span>
+        </label>
+      </div>
+
+      <div class="article-scroll" id="articleScroll">
+        <div class="phone-frame" id="phoneFrame">
+          <div class="phone-head"><span>公众号预览</span><span class="phone-time" id="phoneTime">9:41</span></div>
+          <div class="wechat-render" id="wechatPreview"></div>
+        </div>
+        <div class="editor-pane" id="editorPane" hidden>
+          <textarea id="articleBox" spellcheck="false"></textarea>
+        </div>
+      </div>
+
+      <div class="publish-bar">
+        <div class="stats" id="stats"></div>
+        <div class="publish-actions">
+          <button class="btn ghost sm" id="btnExportMd" type="button">下载 .md</button>
+          <button class="btn ghost sm" id="btnExportHtml" type="button">下载 .html</button>
+          <button class="btn primary" id="btnCopyWechat" type="button">复制到公众号</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 流式生成覆盖层提示 -->
+    <div class="gen-banner" id="genBanner" hidden>
+      <span class="spinner" aria-hidden="true"></span>
+      <span id="genText">正在写……</span>
+      <button class="linkbtn" id="btnStop" type="button">停下</button>
+    </div>
+  </section>
+
+  <!-- ───────────────────────── 右：AI 助手 ───────────────────────── -->
+  <aside class="panel assistant" id="assistantPanel">
+    <div class="panel-head row">
+      <h2>AI 助手</h2>
+      <span class="pill">改稿 / 体检</span>
+    </div>
+
+    <div class="quick-actions" id="quickActions">
+      <button class="qa" data-act="口语" type="button">更口语一点</button>
+      <button class="qa" data-act="钩子" type="button">开头加个钩子</button>
+      <button class="qa" data-act="精简" type="button">压缩 30%</button>
+      <button class="qa" data-act="案例" type="button">补两个例子</button>
+      <button class="qa" data-act="小标题" type="button">加小标题</button>
+      <button class="qa" data-act="体检" type="button">发前体检</button>
+    </div>
+
+    <div class="chat-log" id="chatLog">
+      <div class="chat-hint">
+        <p>文章生成后，可以直接让助手改整篇，也可以点下面的句子试试：</p>
+        <div class="hint-chips" id="hintChips">
+          <button type="button" data-fill="第二段太干了，用我自己的经历改一下">第二段太干了，用我的经历改一下</button>
+          <button type="button" data-fill="标题再扎一点，但别太标题党">标题再扎一点，别太标题党</button>
+          <button type="button" data-fill="开头加一个能让人停下来的场景">开头加一个能让人停下来的场景</button>
+          <button type="button" data-fill="把最后一段改成今天就能做的三件事">结尾改成「今天就能做的三件事」</button>
+        </div>
+        <p class="chat-tip">改完会整篇替换上一版，随时可撤销。</p>
+      </div>
+    </div>
+
+    <form class="chat-input" id="chatForm">
+      <textarea id="chatInput" rows="2" placeholder="让助手改哪一段？（回车发送）"></textarea>
+      <button class="btn primary icon" type="submit" aria-label="发送">
+        <svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M4 12l16-8-6 8 6 8z" fill="currentColor"/></svg>
+      </button>
+    </form>
+  </aside>
+</main>
+
+<!-- ───────────────────────── 抽屉：草稿箱 ───────────────────────── -->
+<div class="drawer" id="draftDrawer" hidden>
+  <div class="drawer-mask" data-close="1"></div>
+  <div class="drawer-body">
+    <div class="drawer-head">
+      <h3>草稿箱</h3>
+      <button class="iconbtn" data-close="1" aria-label="关闭">✕</button>
+    </div>
+    <p class="hint">草稿保存在这台设备的浏览器里，换设备不会同步。</p>
+    <div class="draft-list" id="draftList"></div>
+  </div>
+</div>
+
+<!-- ───────────────────────── 抽屉：帮助 ───────────────────────── -->
+<div class="drawer" id="helpDrawer" hidden>
+  <div class="drawer-mask" data-close="1"></div>
+  <div class="drawer-body">
+    <div class="drawer-head">
+      <h3>怎么用</h3>
+      <button class="iconbtn" data-close="1" aria-label="关闭">✕</button>
+    </div>
+    <ol class="help-list">
+      <li><b>写下想法</b>：一句话、一段素材都行。选好风格、读者和篇幅。</li>
+      <li><b>选标题</b>：AI 会给一个切入角度 + 5 个标题 + 摘要和封面文案，点一个标题即为选定。</li>
+      <li><b>改大纲</b>：大纲可以直接编辑，加一段、删一段都行，再让它按大纲写。</li>
+      <li><b>改文字</b>：右边助手可以整篇改（更口语 / 加钩子 / 压缩），也可以指定「第三段改一下」。</li>
+      <li><b>复制到公众号</b>：点「复制到公众号」，再到微信编辑器里 Ctrl/⌘+V 粘贴，样式会带过去。</li>
+    </ol>
+    <p class="hint">小提示：公众号会过滤外部链接，正文里的超链接建议改成「公众号名称」这样的文字说明。</p>
+  </div>
+</div>
+
+<nav class="mobile-nav" id="mobileNav" aria-label="移动端切换">
+  <button data-view="input" class="active" type="button">写想法</button>
+  <button data-view="work" type="button">稿子</button>
+  <button data-view="chat" type="button">AI 助手</button>
+</nav>
+
+<div class="toast" id="toast" hidden></div>
+
+<script src="assets/wbcloud.sdk.js"></script>
+<script src="assets/config.js"></script>
+<script src="assets/renderer.js"></script>
+<script src="assets/prompts.js"></script>
+<script src="assets/sample.js"></script>
+<script src="assets/ai.js"></script>
+<script src="assets/app.js"></script>
+</body>
+</html>
