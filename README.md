@@ -45,7 +45,7 @@
 |---|---|---|
 | 前端 | 原生 HTML + CSS + ES5 语法的 JS，无构建步骤 | 一个 `index.html` 就能跑，加载 < 1s；不需要 Node 环境也能本地打开 |
 | AI | WorkBuddy 云服务 LLM API（免密钥，服务端持有供应商密钥） | 密钥不进前端；模型列表运行时拉取，可切换 |
-| 排版引擎 | 自研 `assets/renderer.js`（约 300 行） | 公众号只认 inline style，现成的 Markdown 库全都输出 class |
+| 排版引擎 | 自研 `assets/renderer.js`（346 行） | 公众号只认 inline style，现成的 Markdown 库全都输出 class |
 | 存储 | `localStorage`（草稿箱，最多 12 篇） | 不需要登录就能用，符合「打开就能体验」 |
 
 **没有 API Key 硬编码在前端**：前端只有 `publishableKey`（只标识应用、本身无权限，服务端会校验来源域名）。
@@ -54,17 +54,23 @@
 
 ```
 wechat-studio/
-├── index.html              单页应用骨架（三栏：输入 / 工作台 / 助手）
+├── index.html              单页应用骨架（三栏：输入 / 工作台 / 助手）  314 行
 ├── assets/
-│   ├── app.css             设计系统与响应式布局
+│   ├── app.css             设计系统与响应式布局                        779 行
 │   ├── config.js           云服务公开配置
 │   ├── wbcloud.sdk.js      自托管的云 SDK（避免 CDN 抖动影响首屏）
-│   ├── ai.js               LLM 调用层：模型列表 / 流式 / JSON / 错误翻译
-│   ├── prompts.js          五组提示词（选题、大纲、正文、改稿、体检）
-│   ├── renderer.js         Markdown → 公众号行内样式 HTML + 体检
-│   └── app.js              状态机与业务流程
-└── tests/
-    └── renderer.test.cjs   13 项渲染引擎自测（node 直接跑，无需依赖）
+│   ├── ai.js               LLM 调用层：模型列表 / 流式 / JSON / 错误翻译  200 行
+│   ├── prompts.js          五组提示词（选题、大纲、正文、改稿、体检）    170 行
+│   ├── renderer.js         Markdown → 公众号行内样式 HTML + 体检        346 行
+│   ├── sample.js           示例稿（不调模型也能看排版效果）
+│   └── app.js              状态机与业务流程                            863 行
+├── tests/
+│   ├── renderer.test.cjs   15 项渲染引擎自测
+│   ├── ai.test.cjs         10 项 AI 层自测（错误归类 / JSON 容错 / 重试判定）
+│   └── llm.smoke.cjs       线上链路冒烟（需联网）
+├── AI_LOG.md               开发过程与 8 类失败记录
+├── ATTRIBUTION.md          借鉴来源与自研边界
+└── LICENSE                 MIT
 ```
 
 ## 本地运行
@@ -83,11 +89,14 @@ python3 -m http.server 8080
 ## 自测
 
 ```bash
-node tests/renderer.test.cjs
-# 13 项通过，全绿
+node tests/renderer.test.cjs   # 15 项通过，全绿
+node tests/ai.test.cjs         # 10 项通过，全绿
 ```
 
-覆盖：行内样式完整性、代码块换行保留、标题层级、引用/列表/表格/分隔线、Callout、中英间距（含全角标点不插空）、关闭间距、HTML 注入转义、四套主题、字数统计、风险词、长段落识别。
+零测试框架依赖，`node` 直接跑。
+
+- **渲染层 15 项**：行内样式完整性、代码块换行保留、标题层级、引用/列表/表格/分隔线、Callout、中英间距（含全角标点不插空）、关闭间距、HTML 注入转义、四套主题、字数统计、风险词、长段落识别。
+- **AI 层 10 项**：错误归类（403 带 origin 才归因域名、纯 403/429 归因限流）、JSON 容错解析、可重试判定、失败文案不误导。
 
 ## 边界与已知限制
 
@@ -98,4 +107,8 @@ node tests/renderer.test.cjs
 
 ## 许可
 
-MIT。提示词与排版引擎欢迎拿去改成自己的工具。
+MIT（见 [LICENSE](LICENSE)）。提示词与排版引擎欢迎拿去改成自己的工具。
+
+---
+
+**开发过程**：`AI_LOG.md`（10 轮迭代，含 8 类真实失败与修复）｜ **借鉴来源**：`ATTRIBUTION.md`
