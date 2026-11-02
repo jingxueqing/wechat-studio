@@ -27,17 +27,28 @@
     const code = String((error && (error.code || error.errorCode)) || "");
     const raw = String((error && (error.message || error.detail)) || error || "");
     const s = (code + " " + raw).toLowerCase();
+    const status = Number((error && (error.status || error.statusCode)) || 0);
+    const wait = Number((error && error.retryAfterMs) || 0);
 
     if (s.includes("quota") || s.includes("insufficient") || s.includes("余额") || s.includes("超限")) {
       return { text: "今天的模型额度用完了，明天再来，或者换个模型试试。", retry: false };
     }
-    if (s.includes("unauthenticated") || s.includes("401") || s.includes("unauthorized") || s.includes("invalid_grant")) {
+    if (status === 429 || s.includes("429") || s.includes("too many") || s.includes("rate limit")) {
+      const sec = wait ? Math.ceil(wait / 1000) : 2;
+      return { text: `这个模型这会儿排队的人多（限流），${sec} 秒后重试更稳。`, retry: true };
+    }
+    if (s.includes("unauthenticated") || status === 401 || s.includes("401") || s.includes("unauthorized") || s.includes("invalid_grant")) {
       return { text: "模型调用没拿到授权，刷新页面再试一次。", retry: true };
     }
-    if (s.includes("origin") || s.includes("403") || s.includes("forbidden")) {
+    // 403 既可能是域名没授权，也可能是网关限流：只有明确提到 origin 才归因到域名，
+    // 否则会说成「域名未授权」，用户在正式链接上看到会一头雾水（真实踩过）。
+    if (s.includes("origin") || s.includes("referer") || s.includes("not allowed")) {
       return { text: "当前访问域名没有被授权，请用正式发布的链接打开。", retry: false };
     }
-    if (s.includes("timeout") || s.includes("aborted") || s.includes("network") || s.includes("fetch")) {
+    if (status === 403 || s.includes("403") || s.includes("forbidden") || s.includes("rate")) {
+      return { text: "服务端把这个请求挡回来了（多半是请求太密），已经自动重试过，等一下再点一次。", retry: true };
+    }
+    if (s.includes("timeout") || s.includes("aborted") || s.includes("network") || s.includes("fetch") || s.includes("502") || s.includes("503") || s.includes("504")) {
       return { text: "网络或模型响应超时，点重试通常就好了。", retry: true };
     }
     if (s.includes("content_filter") || s.includes("blocked") || s.includes("sensitive")) {
@@ -47,6 +58,12 @@
       return { text: "这个模型暂时不可用，换一个模型再试。", retry: true };
     }
     return { text: "生成失败：" + (raw.slice(0, 120) || "未知错误"), retry: true };
+  }
+
+  /** 值不值得再试一次：网络抖动、限流、5xx 都算 */
+  function isTransient(error) {
+    const info = explain(error);
+    return info.retry;
   }
 
   /** 明显不是「写字」的模型（出图 / 出视频 / 向量），不放进下拉框 */
@@ -119,15 +136,20 @@
     return text;
   }
 
-  /** 取纯文本（一次性拿完），带 1 次自动重试 */
+  /** 取纯文本（一次性拿完），瞬时错误退避重试 2 次 */
   async function complete(opts) {
-    try {
-      return await stream(opts);
-    } catch (e) {
-      if (e && (e.name === "AbortError" || /abort/i.test(String(e.message)))) throw e;
-      await new Promise((r) => setTimeout(r, 700));
-      return await stream(opts);
+    let last = null;
+    for (let i = 0; i < 3; i++) {
+      try {
+        return await stream(opts);
+      } catch (e) {
+        last = e;
+        if (e && (e.name === "AbortError" || /abort/i.test(String(e.message)))) throw e;
+        if (!isTransient(e)) throw e;
+        await new Promise((r) => setTimeout(r, 800 * (i + 1)));
+      }
     }
+    throw last;
   }
 
   /** 取 JSON：容忍模型把 JSON 包在 ```json 里或前后加话 */
@@ -156,9 +178,22 @@
     }
   }
 
+  /** 取 JSON：模型偶尔会把 JSON 写坏或包一层解释，坏一次就再要一次 */
   async function json(opts) {
-    const text = await complete(opts);
-    return parseJson(text);
+    let lastErr = null;
+    for (let i = 0; i < 3; i++) {
+      try {
+        const text = await complete(opts);
+        const data = parseJson(text);
+        if (data) return data;
+        lastErr = new Error("模型返回的不是合法 JSON");
+      } catch (e) {
+        lastErr = e;
+        if (!isTransient(e)) throw e;
+      }
+      await new Promise((r) => setTimeout(r, 800 * (i + 1)));
+    }
+    throw lastErr || new Error("模型返回的不是合法 JSON");
   }
 
   global.AI = { getClient, listModels, stream, complete, json, parseJson, explain };

@@ -487,7 +487,20 @@
       const info = AI.explain(e);
       pending.className = "msg err";
       pending.querySelector(".who").textContent = "出错了";
-      pending.querySelector(".body").textContent = info.text;
+      const body = pending.querySelector(".body");
+      body.textContent = info.text;
+      if (info.retry) {
+        const again = document.createElement("button");
+        again.className = "linkbtn xs";
+        again.type = "button";
+        again.textContent = "再体检一次";
+        again.style.marginTop = "8px";
+        again.addEventListener("click", () => {
+          pending.remove();
+          runCheckup();
+        });
+        body.appendChild(again);
+      }
       console.error("[checkup]", e);
     } finally {
       setBusy(false);
